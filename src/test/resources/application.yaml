@@ -10,3 +10,10 @@ spring:
     nacos:
       discovery:
         enabled: false
+
+auth:
+  jwt:
+    issuer: auth-service
+    secret: test-jwt-secret-at-least-32-bytes-long
+    access-token-ttl: 15m
+    refresh-token-ttl: 7d

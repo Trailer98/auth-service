@@ -59,6 +59,43 @@ BCrypt 用于密码哈希。用户原始密码不应被存储，BCrypt 的慢哈
 
 Redis 可用于补足 JWT 的状态控制，例如登录验证码、登录失败计数、Token 黑名单、刷新令牌状态、用户权限缓存和短期风控数据。
 
+## 认证接口
+
+当前已提供不依赖 Spring Security 的基础登录闭环：
+
+- `POST /auth/login`：使用用户名和密码登录，密码通过 BCrypt 校验；登录成功后签发 JWT access token，并将 refresh token 写入 Redis；无论成功或失败都会写入登录日志。
+- `GET /auth/me`：通过 `Authorization: Bearer <accessToken>` 解析当前用户，并校验 JWT 和 Redis token blacklist。
+- `POST /auth/logout`：通过 access token 登出，将 access token 的 `jti` 写入 Redis 黑名单和 `auth_token_blacklist` 表；如果请求体传入 refresh token，会同步从 Redis 删除。
+- `POST /auth/refresh`：使用 Redis 中保存的 refresh token 换发新的 access token 和 refresh token，旧 refresh token 会被消费删除。
+
+登录请求示例：
+
+```json
+{
+  "username": "<USERNAME>",
+  "password": "<PASSWORD>"
+}
+```
+
+刷新请求示例：
+
+```json
+{
+  "refreshToken": "<REFRESH_TOKEN>"
+}
+```
+
+### 本地默认账号
+
+Flyway 脚本 [V2__init_default_admin.sql](src/main/resources/db/migration/V2__init_default_admin.sql) 会初始化一个内置管理员账号，仅用于本地开发和接口联调：
+
+- 默认用户名：`admin`
+- 默认密码：`admin123456`
+- 默认开通应用：`WMS`、`AI_PLATFORM`
+- 默认角色：`WMS_ADMIN`、`AI_ADMIN`
+
+默认密码在数据库中以 BCrypt 密文保存，不会明文入库。该账号不应直接用于生产环境；首次登录后应立即修改默认密码。
+
 ### 微服务治理与运维
 
 Spring Cloud Alibaba Nacos Discovery 用于服务注册与发现。在微服务架构中，网关、业务服务和管理后台可以通过服务名调用 `auth-service`，避免硬编码服务地址。
@@ -67,7 +104,7 @@ Spring Boot Actuator 用于健康检查和运行状态暴露。部署到容器�
 
 ## 当前配置
 
-当前 [application.yaml](src/main/resources/application.yaml) 已配置服务名、MySQL 数据源和 Flyway：
+当前 [application.yaml](src/main/resources/application.yaml) 已配置服务名、MySQL 数据源、Redis、Nacos、Flyway 和 JWT。README 只保留占位符，真实账号密码应通过环境变量或本地 profile 注入：
 
 ```yaml
 spring:
@@ -75,27 +112,43 @@ spring:
     name: auth-service
   datasource:
     url: jdbc:mysql://localhost:3306/auth?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Tokyo&useSSL=false&allowPublicKeyRetrieval=true
-    username: auth_root
-    password: authroot123456
+    username: ${AUTH_DB_USERNAME}
+    password: ${AUTH_DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
   flyway:
     enabled: true
     locations: classpath:db/migration
     baseline-on-migrate: true
     validate-on-migrate: true
+  data:
+    redis:
+      host: ${AUTH_REDIS_HOST:localhost}
+      port: ${AUTH_REDIS_PORT:6379}
+  cloud:
+    nacos:
+      discovery:
+        server-addr: localhost:8848
+        username: ${NACOS_USERNAME}
+        password: ${NACOS_PASSWORD}
+
+auth:
+  jwt:
+    issuer: auth-service
+    secret: ${AUTH_JWT_SECRET}
+    access-token-ttl: 15m
+    refresh-token-ttl: 7d
 ```
 
-Flyway 初始化脚本位于 [V1__init_auth_schema.sql](src/main/resources/db/migration/V1__init_auth_schema.sql)，用于创建用户中心和权限中心的基础表，包括应用、用户、角色、权限、用户角色关系、角色权限关系、登录日志和 Token 黑名单。
+Flyway 初始化脚本位于 [V1__init_auth_schema.sql](src/main/resources/db/migration/V1__init_auth_schema.sql) 和 [V2__init_default_admin.sql](src/main/resources/db/migration/V2__init_default_admin.sql)。`V1` 用于创建用户中心和权限中心的基础表，包括应用、用户、角色、权限、用户角色关系、角色权限关系、登录日志和 Token 黑名单；`V2` 用于初始化本地开发默认管理员、应用、角色、权限和授权关系。
 
 测试环境使用 [src/test/resources/application.yaml](src/test/resources/application.yaml) 覆盖主数据源为 H2 内存数据库，并关闭 Flyway，避免本地未启动 MySQL 时影响基础测试。
 
-后续仍需要按部署环境补充 Redis、Nacos、JWT、Knife4j/OpenAPI 等配置。建议使用不同 profile 管理本地、测试和生产环境配置，避免敏感信息提交到仓库。
+建议使用不同 profile 管理本地、测试和生产环境配置，避免敏感信息提交到仓库。
 
 ## 后续建设建议
 
 - 定义用户、角色、权限、资源、应用系统等核心领域模型。
-- 设计登录、Token 签发、Token 刷新、登出和密码修改接口。
-- 引入统一异常处理、响应结构和参数校验错误返回。
-- 增加 JWT 配置项，例如签名密钥、访问令牌有效期和刷新令牌有效期。
-- 增加 Redis 缓存策略，例如验证码、Token 黑名单和权限缓存。
+- 设计用户注册、密码修改、密码重置和账号锁定策略。
+- 实现角色授权、权限绑定和跨应用权限查询接口。
+- 增加 Redis 缓存策略，例如验证码、登录失败计数和权限缓存。
 - 配置 Knife4j 分组和接口元信息，形成稳定的接入文档。
