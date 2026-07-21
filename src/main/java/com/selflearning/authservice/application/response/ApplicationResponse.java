@@ -1,6 +1,6 @@
 package com.selflearning.authservice.application.response;
 
-import com.selflearning.authservice.domain.AuthApplication;
+import com.selflearning.authservice.application.domain.AuthApplication;
 import java.time.LocalDateTime;
 
 public record ApplicationResponse(

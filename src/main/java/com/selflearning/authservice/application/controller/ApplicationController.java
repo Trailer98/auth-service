@@ -5,8 +5,8 @@ import com.selflearning.authservice.application.request.ApplicationStatusRequest
 import com.selflearning.authservice.application.request.ApplicationUpdateRequest;
 import com.selflearning.authservice.application.response.ApplicationResponse;
 import com.selflearning.authservice.application.service.ApplicationService;
-import com.selflearning.authservice.web.ApiResponse;
-import com.selflearning.authservice.web.PageResponse;
+import com.selflearning.authservice.common.web.ApiResponse;
+import com.selflearning.authservice.common.web.PageResponse;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;

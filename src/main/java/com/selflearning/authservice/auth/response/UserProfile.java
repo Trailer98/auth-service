@@ -1,6 +1,6 @@
 package com.selflearning.authservice.auth.response;
 
-import com.selflearning.authservice.domain.AuthUser;
+import com.selflearning.authservice.auth.domain.AuthUser;
 
 public record UserProfile(
         /**

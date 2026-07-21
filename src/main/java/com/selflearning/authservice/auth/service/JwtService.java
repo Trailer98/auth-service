@@ -1,6 +1,6 @@
 package com.selflearning.authservice.auth.service;
 
-import com.selflearning.authservice.config.AuthJwtProperties;
+import com.selflearning.authservice.auth.config.AuthJwtProperties;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;

@@ -6,11 +6,11 @@ import com.selflearning.authservice.application.request.ApplicationCreateRequest
 import com.selflearning.authservice.application.request.ApplicationStatusRequest;
 import com.selflearning.authservice.application.request.ApplicationUpdateRequest;
 import com.selflearning.authservice.application.response.ApplicationResponse;
-import com.selflearning.authservice.domain.AuthApplication;
-import com.selflearning.authservice.mapper.AuthApplicationMapper;
-import com.selflearning.authservice.web.BadRequestException;
-import com.selflearning.authservice.web.NotFoundException;
-import com.selflearning.authservice.web.PageResponse;
+import com.selflearning.authservice.application.domain.AuthApplication;
+import com.selflearning.authservice.application.mapper.AuthApplicationMapper;
+import com.selflearning.authservice.common.web.BadRequestException;
+import com.selflearning.authservice.common.web.NotFoundException;
+import com.selflearning.authservice.common.web.PageResponse;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

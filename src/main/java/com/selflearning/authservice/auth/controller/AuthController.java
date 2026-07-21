@@ -7,7 +7,7 @@ import com.selflearning.authservice.auth.response.LoginResponse;
 import com.selflearning.authservice.auth.response.TokenResponse;
 import com.selflearning.authservice.auth.response.UserProfile;
 import com.selflearning.authservice.auth.service.AuthService;
-import com.selflearning.authservice.web.ApiResponse;
+import com.selflearning.authservice.common.web.ApiResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
