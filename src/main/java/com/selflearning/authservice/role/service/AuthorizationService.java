@@ -5,6 +5,7 @@ import com.selflearning.authservice.application.domain.AuthApplication;
 import com.selflearning.authservice.application.mapper.AuthApplicationMapper;
 import com.selflearning.authservice.auth.domain.AuthUser;
 import com.selflearning.authservice.auth.mapper.AuthUserMapper;
+import com.selflearning.authservice.auth.service.PermissionContextCacheService;
 import com.selflearning.authservice.permission.domain.AuthPermission;
 import com.selflearning.authservice.permission.mapper.AuthPermissionMapper;
 import com.selflearning.authservice.permission.response.PermissionResponse;
@@ -35,6 +36,7 @@ public class AuthorizationService {
     private final AuthPermissionMapper permissionMapper;
     private final AuthUserRoleMapper userRoleMapper;
     private final AuthRolePermissionMapper rolePermissionMapper;
+    private final PermissionContextCacheService permissionContextCacheService;
 
     public AuthorizationService(
             AuthApplicationMapper applicationMapper,
@@ -42,13 +44,15 @@ public class AuthorizationService {
             AuthRoleMapper roleMapper,
             AuthPermissionMapper permissionMapper,
             AuthUserRoleMapper userRoleMapper,
-            AuthRolePermissionMapper rolePermissionMapper) {
+            AuthRolePermissionMapper rolePermissionMapper,
+            PermissionContextCacheService permissionContextCacheService) {
         this.applicationMapper = applicationMapper;
         this.userMapper = userMapper;
         this.roleMapper = roleMapper;
         this.permissionMapper = permissionMapper;
         this.userRoleMapper = userRoleMapper;
         this.rolePermissionMapper = rolePermissionMapper;
+        this.permissionContextCacheService = permissionContextCacheService;
     }
 
     public List<PermissionResponse> listRolePermissions(String applicationCode, Long roleId) {
@@ -96,6 +100,7 @@ public class AuthorizationService {
             rolePermissionMapper.insert(relation);
         }
 
+        evictRoleUsers(normalizedApplicationCode, roleId);
         return listRolePermissions(normalizedApplicationCode, roleId);
     }
 
@@ -141,7 +146,18 @@ public class AuthorizationService {
             userRoleMapper.insert(relation);
         }
 
+        permissionContextCacheService.evictUserApplication(userId, normalizedApplicationCode);
         return listUserRoles(normalizedApplicationCode, userId);
+    }
+
+    private void evictRoleUsers(String applicationCode, Long roleId) {
+        Set<Long> userIds = userRoleMapper.selectList(new LambdaQueryWrapper<AuthUserRole>()
+                        .eq(AuthUserRole::getApplicationCode, applicationCode)
+                        .eq(AuthUserRole::getRoleId, roleId))
+                .stream()
+                .map(AuthUserRole::getUserId)
+                .collect(Collectors.toSet());
+        permissionContextCacheService.evictUsersApplication(userIds, applicationCode);
     }
 
     public List<PermissionResponse> listUserPermissions(String applicationCode, Long userId) {

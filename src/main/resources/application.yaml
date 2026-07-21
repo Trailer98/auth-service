@@ -33,6 +33,7 @@ spring:
         group: DEFAULT_GROUP
 
 auth:
+  permission-cache-ttl: 30m
   jwt:
     issuer: auth-service
     secret: ${AUTH_JWT_SECRET}

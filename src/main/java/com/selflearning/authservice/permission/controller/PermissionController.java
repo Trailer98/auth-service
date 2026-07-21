@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/applications/{applicationCode}/permissions")
+@RequestMapping("/auth/applications/{applicationCode}/permissions")
 public class PermissionController {
 
     private final PermissionService permissionService;

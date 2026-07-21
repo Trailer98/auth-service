@@ -12,6 +12,7 @@ import com.selflearning.authservice.application.domain.AuthApplication;
 import com.selflearning.authservice.application.mapper.AuthApplicationMapper;
 import com.selflearning.authservice.auth.domain.AuthUser;
 import com.selflearning.authservice.auth.mapper.AuthUserMapper;
+import com.selflearning.authservice.auth.service.PermissionContextCacheService;
 import com.selflearning.authservice.permission.domain.AuthPermission;
 import com.selflearning.authservice.permission.mapper.AuthPermissionMapper;
 import com.selflearning.authservice.role.domain.AuthRole;
@@ -38,13 +39,16 @@ class AuthorizationServiceTest {
     private final AuthPermissionMapper permissionMapper = org.mockito.Mockito.mock(AuthPermissionMapper.class);
     private final AuthUserRoleMapper userRoleMapper = org.mockito.Mockito.mock(AuthUserRoleMapper.class);
     private final AuthRolePermissionMapper rolePermissionMapper = org.mockito.Mockito.mock(AuthRolePermissionMapper.class);
+    private final PermissionContextCacheService permissionContextCacheService =
+            org.mockito.Mockito.mock(PermissionContextCacheService.class);
     private final AuthorizationService authorizationService = new AuthorizationService(
             applicationMapper,
             userMapper,
             roleMapper,
             permissionMapper,
             userRoleMapper,
-            rolePermissionMapper);
+            rolePermissionMapper,
+            permissionContextCacheService);
 
     @BeforeAll
     static void initMybatisPlusTableInfo() {

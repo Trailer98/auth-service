@@ -4,8 +4,10 @@ import com.selflearning.authservice.auth.request.LoginRequest;
 import com.selflearning.authservice.auth.request.LogoutRequest;
 import com.selflearning.authservice.auth.request.RefreshRequest;
 import com.selflearning.authservice.auth.response.LoginResponse;
+import com.selflearning.authservice.auth.response.AuthContextResponse;
 import com.selflearning.authservice.auth.response.TokenResponse;
 import com.selflearning.authservice.auth.response.UserProfile;
+import com.selflearning.authservice.auth.service.AuthContextService;
 import com.selflearning.authservice.auth.service.AuthService;
 import com.selflearning.authservice.common.web.ApiResponse;
 import jakarta.servlet.http.HttpServletRequest;
@@ -15,6 +17,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -22,9 +25,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
     private final AuthService authService;
+    private final AuthContextService authContextService;
 
-    public AuthController(AuthService authService) {
+    public AuthController(AuthService authService, AuthContextService authContextService) {
         this.authService = authService;
+        this.authContextService = authContextService;
     }
 
     /**
@@ -54,6 +59,20 @@ public class AuthController {
     @GetMapping("/me")
     public ApiResponse<UserProfile> me(@RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
         return ApiResponse.ok(authService.me(authorizationHeader));
+    }
+
+    /**
+     * 查询当前登录用户在指定应用下的运行时权限上下文。
+     *
+     * @param authorizationHeader Authorization 请求头
+     * @param applicationCode 应用编码
+     * @return 当前用户在指定应用下的角色和权限编码
+     */
+    @GetMapping("/context")
+    public ApiResponse<AuthContextResponse> context(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @RequestParam String applicationCode) {
+        return ApiResponse.ok(authContextService.getContext(authorizationHeader, applicationCode));
     }
 
     /**

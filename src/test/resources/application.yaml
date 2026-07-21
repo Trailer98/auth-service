@@ -12,6 +12,7 @@ spring:
         enabled: false
 
 auth:
+  permission-cache-ttl: 30m
   jwt:
     issuer: auth-service
     secret: test-jwt-secret-at-least-32-bytes-long

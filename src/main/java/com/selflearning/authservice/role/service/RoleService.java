@@ -4,8 +4,11 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.selflearning.authservice.application.domain.AuthApplication;
 import com.selflearning.authservice.application.mapper.AuthApplicationMapper;
+import com.selflearning.authservice.auth.service.PermissionContextCacheService;
 import com.selflearning.authservice.role.domain.AuthRole;
+import com.selflearning.authservice.role.domain.AuthUserRole;
 import com.selflearning.authservice.role.mapper.AuthRoleMapper;
+import com.selflearning.authservice.role.mapper.AuthUserRoleMapper;
 import com.selflearning.authservice.role.request.RoleCreateRequest;
 import com.selflearning.authservice.role.request.RoleStatusRequest;
 import com.selflearning.authservice.role.request.RoleUpdateRequest;
@@ -13,6 +16,8 @@ import com.selflearning.authservice.role.response.RoleResponse;
 import com.selflearning.authservice.common.web.BadRequestException;
 import com.selflearning.authservice.common.web.NotFoundException;
 import com.selflearning.authservice.common.web.PageResponse;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,10 +32,18 @@ public class RoleService {
 
     private final AuthApplicationMapper applicationMapper;
     private final AuthRoleMapper roleMapper;
+    private final AuthUserRoleMapper userRoleMapper;
+    private final PermissionContextCacheService permissionContextCacheService;
 
-    public RoleService(AuthApplicationMapper applicationMapper, AuthRoleMapper roleMapper) {
+    public RoleService(
+            AuthApplicationMapper applicationMapper,
+            AuthRoleMapper roleMapper,
+            AuthUserRoleMapper userRoleMapper,
+            PermissionContextCacheService permissionContextCacheService) {
         this.applicationMapper = applicationMapper;
         this.roleMapper = roleMapper;
+        this.userRoleMapper = userRoleMapper;
+        this.permissionContextCacheService = permissionContextCacheService;
     }
 
     public PageResponse<RoleResponse> pageRoles(
@@ -87,10 +100,14 @@ public class RoleService {
     @Transactional
     public RoleResponse updateRole(String applicationCode, Long roleId, RoleUpdateRequest request) {
         AuthRole existing = requireRole(applicationCode, roleId);
+        Integer previousStatus = existing.getStatus();
         existing.setRoleName(request.roleName().trim());
         existing.setDescription(trimToNull(request.description()));
         existing.setStatus(request.status() == null ? existing.getStatus() : request.status());
         roleMapper.updateById(existing);
+        if (request.status() != null && !request.status().equals(previousStatus)) {
+            evictRoleContext(existing.getApplicationCode(), existing.getId());
+        }
         return RoleResponse.from(requireRole(applicationCode, roleId));
     }
 
@@ -99,6 +116,7 @@ public class RoleService {
         AuthRole existing = requireRole(applicationCode, roleId);
         existing.setStatus(request.status());
         roleMapper.updateById(existing);
+        evictRoleContext(existing.getApplicationCode(), existing.getId());
         return RoleResponse.from(requireRole(applicationCode, roleId));
     }
 
@@ -107,6 +125,17 @@ public class RoleService {
         AuthRole existing = requireRole(applicationCode, roleId);
         existing.setDeleted(true);
         roleMapper.updateById(existing);
+        evictRoleContext(existing.getApplicationCode(), existing.getId());
+    }
+
+    private void evictRoleContext(String applicationCode, Long roleId) {
+        Set<Long> userIds = userRoleMapper.selectList(new LambdaQueryWrapper<AuthUserRole>()
+                        .eq(AuthUserRole::getApplicationCode, applicationCode)
+                        .eq(AuthUserRole::getRoleId, roleId))
+                .stream()
+                .map(AuthUserRole::getUserId)
+                .collect(Collectors.toSet());
+        permissionContextCacheService.evictUsersApplication(userIds, applicationCode);
     }
 
     private LambdaQueryWrapper<AuthRole> baseQuery(String applicationCode, String keyword, Integer status) {

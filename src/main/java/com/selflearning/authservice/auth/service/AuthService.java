@@ -100,7 +100,7 @@ public class AuthService {
      * @return 当前用户信息
      */
     public UserProfile me(String authorizationHeader) {
-        AuthenticatedUser authenticatedUser = authenticate(authorizationHeader);
+        AuthenticatedUser authenticatedUser = authenticateAccessToken(authorizationHeader);
         AuthUser user = userMapper.selectById(authenticatedUser.userId());
         if (user == null || Boolean.TRUE.equals(user.getDeleted())) {
             throw new UnauthorizedException("User not found");
@@ -122,7 +122,7 @@ public class AuthService {
      */
     @Transactional
     public void logout(String authorizationHeader, LogoutRequest request) {
-        AuthenticatedUser authenticatedUser = authenticate(authorizationHeader);
+        AuthenticatedUser authenticatedUser = authenticateAccessToken(authorizationHeader);
         Instant expiresAt = Instant.ofEpochSecond(authenticatedUser.expiresAtEpochSecond());
         tokenStoreService.blacklistAccessToken(authenticatedUser.tokenId(), expiresAt);
         persistTokenBlacklist(authenticatedUser.tokenId(), authenticatedUser.userId(), expiresAt);
@@ -164,7 +164,7 @@ public class AuthService {
      * @param authorizationHeader Authorization 请求头
      * @return access token 中解析出的认证用户信息
      */
-    private AuthenticatedUser authenticate(String authorizationHeader) {
+    public AuthenticatedUser authenticateAccessToken(String authorizationHeader) {
         String accessToken = resolveBearerToken(authorizationHeader);
         AuthenticatedUser authenticatedUser = jwtService.parseAccessToken(accessToken);
         if (tokenStoreService.isAccessTokenBlacklisted(authenticatedUser.tokenId())) {

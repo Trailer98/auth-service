@@ -15,6 +15,8 @@ import com.selflearning.authservice.application.domain.AuthApplication;
 import com.selflearning.authservice.application.mapper.AuthApplicationMapper;
 import com.selflearning.authservice.common.web.BadRequestException;
 import com.selflearning.authservice.common.web.PageResponse;
+import com.selflearning.authservice.auth.service.PermissionContextCacheService;
+import com.selflearning.authservice.role.mapper.AuthUserRoleMapper;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -23,7 +25,13 @@ import org.springframework.dao.DuplicateKeyException;
 class ApplicationServiceTest {
 
     private final AuthApplicationMapper applicationMapper = org.mockito.Mockito.mock(AuthApplicationMapper.class);
-    private final ApplicationService applicationService = new ApplicationService(applicationMapper);
+    private final AuthUserRoleMapper userRoleMapper = org.mockito.Mockito.mock(AuthUserRoleMapper.class);
+    private final PermissionContextCacheService permissionContextCacheService =
+            org.mockito.Mockito.mock(PermissionContextCacheService.class);
+    private final ApplicationService applicationService = new ApplicationService(
+            applicationMapper,
+            userRoleMapper,
+            permissionContextCacheService);
 
     @Test
     void pageApplicationsUsesMybatisPlusPageQuery() {

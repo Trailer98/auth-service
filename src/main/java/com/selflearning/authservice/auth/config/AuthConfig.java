@@ -6,7 +6,10 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 @Configuration
-@EnableConfigurationProperties(AuthJwtProperties.class)
+@EnableConfigurationProperties({
+        AuthJwtProperties.class,
+        AuthPermissionCacheProperties.class
+})
 public class AuthConfig {
 
     @Bean

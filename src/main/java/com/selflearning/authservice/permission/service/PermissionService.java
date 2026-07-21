@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.selflearning.authservice.application.domain.AuthApplication;
 import com.selflearning.authservice.application.mapper.AuthApplicationMapper;
+import com.selflearning.authservice.auth.service.PermissionContextCacheService;
 import com.selflearning.authservice.permission.domain.AuthPermission;
 import com.selflearning.authservice.permission.mapper.AuthPermissionMapper;
 import com.selflearning.authservice.permission.request.PermissionCreateRequest;
@@ -13,6 +14,12 @@ import com.selflearning.authservice.permission.response.PermissionResponse;
 import com.selflearning.authservice.common.web.BadRequestException;
 import com.selflearning.authservice.common.web.NotFoundException;
 import com.selflearning.authservice.common.web.PageResponse;
+import com.selflearning.authservice.role.domain.AuthRolePermission;
+import com.selflearning.authservice.role.domain.AuthUserRole;
+import com.selflearning.authservice.role.mapper.AuthRolePermissionMapper;
+import com.selflearning.authservice.role.mapper.AuthUserRoleMapper;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,10 +35,21 @@ public class PermissionService {
 
     private final AuthApplicationMapper applicationMapper;
     private final AuthPermissionMapper permissionMapper;
+    private final AuthRolePermissionMapper rolePermissionMapper;
+    private final AuthUserRoleMapper userRoleMapper;
+    private final PermissionContextCacheService permissionContextCacheService;
 
-    public PermissionService(AuthApplicationMapper applicationMapper, AuthPermissionMapper permissionMapper) {
+    public PermissionService(
+            AuthApplicationMapper applicationMapper,
+            AuthPermissionMapper permissionMapper,
+            AuthRolePermissionMapper rolePermissionMapper,
+            AuthUserRoleMapper userRoleMapper,
+            PermissionContextCacheService permissionContextCacheService) {
         this.applicationMapper = applicationMapper;
         this.permissionMapper = permissionMapper;
+        this.rolePermissionMapper = rolePermissionMapper;
+        this.userRoleMapper = userRoleMapper;
+        this.permissionContextCacheService = permissionContextCacheService;
     }
 
     public PageResponse<PermissionResponse> pagePermissions(
@@ -96,6 +114,7 @@ public class PermissionService {
     public PermissionResponse updatePermission(String applicationCode, Long permissionId, PermissionUpdateRequest request) {
         AuthPermission existing = requirePermission(applicationCode, permissionId);
         validateParent(existing.getApplicationCode(), request.parentId(), permissionId);
+        Integer previousStatus = existing.getStatus();
 
         existing.setPermissionName(request.permissionName().trim());
         existing.setPermissionType(request.permissionType().trim());
@@ -105,6 +124,9 @@ public class PermissionService {
         existing.setSortOrder(request.sortOrder() == null ? existing.getSortOrder() : request.sortOrder());
         existing.setStatus(request.status() == null ? existing.getStatus() : request.status());
         permissionMapper.updateById(existing);
+        if (request.status() != null && !request.status().equals(previousStatus)) {
+            evictPermissionContext(existing.getApplicationCode(), existing.getId());
+        }
         return PermissionResponse.from(requirePermission(applicationCode, permissionId));
     }
 
@@ -113,6 +135,7 @@ public class PermissionService {
         AuthPermission existing = requirePermission(applicationCode, permissionId);
         existing.setStatus(request.status());
         permissionMapper.updateById(existing);
+        evictPermissionContext(existing.getApplicationCode(), existing.getId());
         return PermissionResponse.from(requirePermission(applicationCode, permissionId));
     }
 
@@ -121,6 +144,27 @@ public class PermissionService {
         AuthPermission existing = requirePermission(applicationCode, permissionId);
         existing.setDeleted(true);
         permissionMapper.updateById(existing);
+        evictPermissionContext(existing.getApplicationCode(), existing.getId());
+    }
+
+    private void evictPermissionContext(String applicationCode, Long permissionId) {
+        Set<Long> roleIds = rolePermissionMapper.selectList(new LambdaQueryWrapper<AuthRolePermission>()
+                        .eq(AuthRolePermission::getApplicationCode, applicationCode)
+                        .eq(AuthRolePermission::getPermissionId, permissionId))
+                .stream()
+                .map(AuthRolePermission::getRoleId)
+                .collect(Collectors.toSet());
+        if (roleIds.isEmpty()) {
+            permissionContextCacheService.evictUsersApplication(Set.of(), applicationCode);
+            return;
+        }
+        Set<Long> userIds = userRoleMapper.selectList(new LambdaQueryWrapper<AuthUserRole>()
+                        .eq(AuthUserRole::getApplicationCode, applicationCode)
+                        .in(AuthUserRole::getRoleId, roleIds))
+                .stream()
+                .map(AuthUserRole::getUserId)
+                .collect(Collectors.toSet());
+        permissionContextCacheService.evictUsersApplication(userIds, applicationCode);
     }
 
     private LambdaQueryWrapper<AuthPermission> baseQuery(

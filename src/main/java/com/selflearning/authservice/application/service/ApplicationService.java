@@ -8,9 +8,14 @@ import com.selflearning.authservice.application.request.ApplicationUpdateRequest
 import com.selflearning.authservice.application.response.ApplicationResponse;
 import com.selflearning.authservice.application.domain.AuthApplication;
 import com.selflearning.authservice.application.mapper.AuthApplicationMapper;
+import com.selflearning.authservice.auth.service.PermissionContextCacheService;
 import com.selflearning.authservice.common.web.BadRequestException;
 import com.selflearning.authservice.common.web.NotFoundException;
 import com.selflearning.authservice.common.web.PageResponse;
+import com.selflearning.authservice.role.domain.AuthUserRole;
+import com.selflearning.authservice.role.mapper.AuthUserRoleMapper;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,9 +29,16 @@ public class ApplicationService {
     private static final long MAX_PAGE_SIZE = 100L;
 
     private final AuthApplicationMapper applicationMapper;
+    private final AuthUserRoleMapper userRoleMapper;
+    private final PermissionContextCacheService permissionContextCacheService;
 
-    public ApplicationService(AuthApplicationMapper applicationMapper) {
+    public ApplicationService(
+            AuthApplicationMapper applicationMapper,
+            AuthUserRoleMapper userRoleMapper,
+            PermissionContextCacheService permissionContextCacheService) {
         this.applicationMapper = applicationMapper;
+        this.userRoleMapper = userRoleMapper;
+        this.permissionContextCacheService = permissionContextCacheService;
     }
 
     /**
@@ -102,10 +114,14 @@ public class ApplicationService {
     @Transactional
     public ApplicationResponse updateApplication(Long id, ApplicationUpdateRequest request) {
         AuthApplication existing = requireExistingApplication(id);
+        Integer previousStatus = existing.getStatus();
         existing.setApplicationName(request.applicationName().trim());
         existing.setDescription(trimToNull(request.description()));
         existing.setStatus(request.status() == null ? existing.getStatus() : request.status());
         applicationMapper.updateById(existing);
+        if (request.status() != null && !request.status().equals(previousStatus)) {
+            evictApplicationContext(existing.getApplicationCode());
+        }
         return ApplicationResponse.from(requireExistingApplication(id));
     }
 
@@ -121,6 +137,7 @@ public class ApplicationService {
         AuthApplication existing = requireExistingApplication(id);
         existing.setStatus(request.status());
         applicationMapper.updateById(existing);
+        evictApplicationContext(existing.getApplicationCode());
         return ApplicationResponse.from(requireExistingApplication(id));
     }
 
@@ -134,6 +151,16 @@ public class ApplicationService {
         AuthApplication existing = requireExistingApplication(id);
         existing.setDeleted(true);
         applicationMapper.updateById(existing);
+        evictApplicationContext(existing.getApplicationCode());
+    }
+
+    private void evictApplicationContext(String applicationCode) {
+        Set<Long> userIds = userRoleMapper.selectList(new LambdaQueryWrapper<AuthUserRole>()
+                        .eq(AuthUserRole::getApplicationCode, applicationCode))
+                .stream()
+                .map(AuthUserRole::getUserId)
+                .collect(Collectors.toSet());
+        permissionContextCacheService.evictUsersApplication(userIds, applicationCode);
     }
 
     private LambdaQueryWrapper<AuthApplication> baseQuery(String keyword, Integer status) {
