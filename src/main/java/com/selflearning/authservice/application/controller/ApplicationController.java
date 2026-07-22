@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/auth/applications")
+@RequestMapping("/applications")
 public class ApplicationController {
 
     private final ApplicationService applicationService;

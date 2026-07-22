@@ -6,6 +6,7 @@ import com.selflearning.authservice.auth.request.LogoutRequest;
 import com.selflearning.authservice.auth.request.RefreshRequest;
 import com.selflearning.authservice.auth.response.LoginResponse;
 import com.selflearning.authservice.auth.response.TokenResponse;
+import com.selflearning.authservice.auth.response.TokenValidateResponse;
 import com.selflearning.authservice.auth.response.UserProfile;
 import com.selflearning.authservice.auth.domain.AuthLoginLog;
 import com.selflearning.authservice.auth.domain.AuthTokenBlacklist;
@@ -124,6 +125,7 @@ public class AuthService {
     public void logout(String authorizationHeader, LogoutRequest request) {
         AuthenticatedUser authenticatedUser = authenticateAccessToken(authorizationHeader);
         Instant expiresAt = Instant.ofEpochSecond(authenticatedUser.expiresAtEpochSecond());
+        tokenStoreService.revokeAccessTokenSession(authenticatedUser.tokenId());
         tokenStoreService.blacklistAccessToken(authenticatedUser.tokenId(), expiresAt);
         persistTokenBlacklist(authenticatedUser.tokenId(), authenticatedUser.userId(), expiresAt);
         if (request != null) {
@@ -174,6 +176,34 @@ public class AuthService {
     }
 
     /**
+     * 校验 Gateway 内部调用传入的 access token。
+     *
+     * <p>校验范围包括 JWT 签名和过期时间、Redis 黑名单、Redis session、用户存在性和启用状态。</p>
+     *
+     * @param token access token 原文，可选携带 Bearer 前缀
+     * @return 通过校验后的 token 身份信息
+     */
+    public TokenValidateResponse validateInternalAccessToken(String token) {
+        AuthenticatedUser authenticatedUser = authenticateRawAccessToken(token);
+        if (!tokenStoreService.isAccessTokenSessionValid(authenticatedUser.tokenId(), authenticatedUser.userId())) {
+            throw new UnauthorizedException("Session is invalid");
+        }
+        AuthUser user = userMapper.selectById(authenticatedUser.userId());
+        if (user == null || Boolean.TRUE.equals(user.getDeleted())) {
+            throw new UnauthorizedException("User not found");
+        }
+        if (!Integer.valueOf(USER_STATUS_ENABLED).equals(user.getStatus())) {
+            throw new UnauthorizedException("User is disabled");
+        }
+        return new TokenValidateResponse(
+                true,
+                user.getId(),
+                user.getUsername(),
+                authenticatedUser.tokenId(),
+                Instant.ofEpochSecond(authenticatedUser.expiresAtEpochSecond()));
+    }
+
+    /**
      * 为指定用户签发 access token 和 refresh token。
      *
      * @param user 登录用户
@@ -182,6 +212,7 @@ public class AuthService {
     private JwtTokenPair issueTokenPair(AuthUser user) {
         JwtService.AccessTokenIssue accessToken = jwtService.issueAccessToken(user.getId(), user.getUsername());
         TokenStoreService.RefreshTokenIssue refreshToken = tokenStoreService.issueRefreshToken(user.getId());
+        tokenStoreService.storeAccessTokenSession(accessToken.tokenId(), user.getId(), accessToken.expiresAt());
         return new JwtTokenPair(accessToken.token(), refreshToken.token(), accessToken.expiresAt(), refreshToken.expiresAt());
     }
 
@@ -213,6 +244,29 @@ public class AuthService {
             throw new UnauthorizedException("Missing bearer token");
         }
         return token;
+    }
+
+    private AuthenticatedUser authenticateRawAccessToken(String token) {
+        String accessToken = resolveTokenValue(token);
+        AuthenticatedUser authenticatedUser = jwtService.parseAccessToken(accessToken);
+        if (tokenStoreService.isAccessTokenBlacklisted(authenticatedUser.tokenId())) {
+            throw new UnauthorizedException("Access token has been revoked");
+        }
+        return authenticatedUser;
+    }
+
+    private String resolveTokenValue(String token) {
+        if (token == null || token.isBlank()) {
+            throw new UnauthorizedException("Missing bearer token");
+        }
+        String tokenValue = token.trim();
+        if (tokenValue.startsWith("Bearer ")) {
+            tokenValue = tokenValue.substring("Bearer ".length()).trim();
+        }
+        if (tokenValue.isEmpty()) {
+            throw new UnauthorizedException("Missing bearer token");
+        }
+        return tokenValue;
     }
 
     /**

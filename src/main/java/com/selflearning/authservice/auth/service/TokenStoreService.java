@@ -12,6 +12,7 @@ public class TokenStoreService {
 
     private static final String REFRESH_PREFIX = "auth:refresh:";
     private static final String BLACKLIST_PREFIX = "auth:blacklist:";
+    private static final String SESSION_PREFIX = "auth:session:";
 
     private final StringRedisTemplate redisTemplate;
     private final AuthJwtProperties properties;
@@ -43,6 +44,22 @@ public class TokenStoreService {
         }
     }
 
+    public void storeAccessTokenSession(String tokenId, Long userId, Instant expiresAt) {
+        Duration ttl = Duration.between(Instant.now(), expiresAt);
+        if (!ttl.isNegative() && !ttl.isZero()) {
+            redisTemplate.opsForValue().set(sessionKey(tokenId), String.valueOf(userId), ttl);
+        }
+    }
+
+    public boolean isAccessTokenSessionValid(String tokenId, Long userId) {
+        String storedUserId = redisTemplate.opsForValue().get(sessionKey(tokenId));
+        return String.valueOf(userId).equals(storedUserId);
+    }
+
+    public void revokeAccessTokenSession(String tokenId) {
+        redisTemplate.delete(sessionKey(tokenId));
+    }
+
     public void blacklistAccessToken(String tokenId, Instant expiresAt) {
         Duration ttl = Duration.between(Instant.now(), expiresAt);
         if (!ttl.isNegative() && !ttl.isZero()) {
@@ -60,6 +77,10 @@ public class TokenStoreService {
 
     private String blacklistKey(String tokenId) {
         return BLACKLIST_PREFIX + tokenId;
+    }
+
+    private String sessionKey(String tokenId) {
+        return SESSION_PREFIX + tokenId;
     }
 
     public record RefreshTokenIssue(String token, Instant expiresAt) {

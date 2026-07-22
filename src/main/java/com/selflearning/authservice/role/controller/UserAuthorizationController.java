@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/auth/applications/{applicationCode}/users/{userId}")
+@RequestMapping("/applications/{applicationCode}/users/{userId}")
 public class UserAuthorizationController {
 
     private final AuthorizationService authorizationService;
