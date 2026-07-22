@@ -1,7 +1,7 @@
 server:
   port: 8081
   servlet:
-    context-path: /wms
+    context-path: /auth
 
 spring:
   application:
