@@ -6,38 +6,26 @@ server:
 spring:
   application:
     name: auth-service
-  datasource:
-    url: jdbc:mysql://localhost:3306/auth?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Tokyo&useSSL=false&allowPublicKeyRetrieval=true
-    username: ${AUTH_DB_USERNAME}
-    password: ${AUTH_DB_PASSWORD}
-    driver-class-name: com.mysql.cj.jdbc.Driver
-  data:
-    redis:
-      host: ${AUTH_REDIS_HOST:localhost}
-      port: ${AUTH_REDIS_PORT:6379}
-      database: ${AUTH_REDIS_DATABASE:0}
-      password: ${AUTH_REDIS_PASSWORD:}
-      timeout: 3s
   flyway:
-    enabled: true
-    locations: classpath:db/migration
-    baseline-on-migrate: true
     validate-on-migrate: true
   cloud:
     nacos:
       discovery:
         enabled: true
-        server-addr: localhost:8848
+        server-addr: ${NACOS_SERVER_ADDR:localhost:8848}
         username: ${NACOS_USERNAME}
         password: ${NACOS_PASSWORD}
         service: ${spring.application.name}
-        namespace: public
+        namespace: da3fc902-1db6-43e2-afc5-314500fcbf14
         group: DEFAULT_GROUP
+      config:
+        server-addr: ${NACOS_SERVER_ADDR:localhost:8848}
+        username: ${NACOS_USERNAME}
+        password: ${NACOS_PASSWORD}
+        namespace: da3fc902-1db6-43e2-afc5-314500fcbf14
+        group: AUTH_GROUP
 
-auth:
-  permission-cache-ttl: 30m
-  jwt:
-    issuer: auth-service
-    secret: ${AUTH_JWT_SECRET}
-    access-token-ttl: 15m
-    refresh-token-ttl: 7d
+  config:
+    import:
+      - nacos:auth-service.yaml?group=AUTH_GROUP&refreshEnabled=true
+      - nacos:auth-service-dev.yaml?group=AUTH_GROUP&refreshEnabled=false

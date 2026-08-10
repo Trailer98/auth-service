@@ -33,3 +33,5 @@ build/
 .vscode/
 /src/main/resources/application-local.yaml
 /src/main/resources/rebel.xml
+/src/main/resources/application-docker.yml
+/auth-service.env
