@@ -8,6 +8,7 @@ import com.selflearning.authservice.role.request.RoleStatusRequest;
 import com.selflearning.authservice.role.request.RoleUpdateRequest;
 import com.selflearning.authservice.role.response.RoleResponse;
 import com.selflearning.authservice.role.service.RoleService;
+import com.selflearning.authservice.common.security.RequiresPermission;
 import com.selflearning.authservice.common.web.ApiResponse;
 import com.selflearning.authservice.common.web.PageResponse;
 import jakarta.validation.Valid;
@@ -46,6 +47,7 @@ public class RoleController {
      * @return 角色分页结果
      */
     @GetMapping
+    @RequiresPermission("role:manage")
     public ApiResponse<PageResponse<RoleResponse>> pageRoles(
             @PathVariable String applicationCode,
             @RequestParam(required = false) String keyword,
@@ -63,6 +65,7 @@ public class RoleController {
      * @return 角色详情
      */
     @GetMapping("/{roleId}")
+    @RequiresPermission("role:manage")
     public ApiResponse<RoleResponse> getRole(
             @PathVariable String applicationCode,
             @PathVariable Long roleId) {
@@ -77,6 +80,7 @@ public class RoleController {
      * @return 新建角色详情
      */
     @PostMapping
+    @RequiresPermission("role:manage")
     public ApiResponse<RoleResponse> createRole(
             @PathVariable String applicationCode,
             @Valid @RequestBody RoleCreateRequest request) {
@@ -92,6 +96,7 @@ public class RoleController {
      * @return 更新后的角色详情
      */
     @PutMapping("/{roleId}")
+    @RequiresPermission("role:manage")
     public ApiResponse<RoleResponse> updateRole(
             @PathVariable String applicationCode,
             @PathVariable Long roleId,
@@ -108,6 +113,7 @@ public class RoleController {
      * @return 更新后的角色详情
      */
     @PatchMapping("/{roleId}/status")
+    @RequiresPermission("role:manage")
     public ApiResponse<RoleResponse> updateStatus(
             @PathVariable String applicationCode,
             @PathVariable Long roleId,
@@ -123,6 +129,7 @@ public class RoleController {
      * @return 空响应
      */
     @DeleteMapping("/{roleId}")
+    @RequiresPermission("role:manage")
     public ApiResponse<Void> deleteRole(
             @PathVariable String applicationCode,
             @PathVariable Long roleId) {
@@ -138,6 +145,7 @@ public class RoleController {
      * @return 权限列表
      */
     @GetMapping("/{roleId}/permissions")
+    @RequiresPermission("role:manage")
     public ApiResponse<List<PermissionResponse>> listRolePermissions(
             @PathVariable String applicationCode,
             @PathVariable Long roleId) {
@@ -155,6 +163,7 @@ public class RoleController {
      * @return 替换后的权限列表
      */
     @PutMapping("/{roleId}/permissions")
+    @RequiresPermission("role:manage")
     public ApiResponse<List<PermissionResponse>> replaceRolePermissions(
             @PathVariable String applicationCode,
             @PathVariable Long roleId,

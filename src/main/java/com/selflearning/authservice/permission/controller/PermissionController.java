@@ -5,6 +5,7 @@ import com.selflearning.authservice.permission.request.PermissionStatusRequest;
 import com.selflearning.authservice.permission.request.PermissionUpdateRequest;
 import com.selflearning.authservice.permission.response.PermissionResponse;
 import com.selflearning.authservice.permission.service.PermissionService;
+import com.selflearning.authservice.common.security.RequiresPermission;
 import com.selflearning.authservice.common.web.ApiResponse;
 import com.selflearning.authservice.common.web.PageResponse;
 import jakarta.validation.Valid;
@@ -42,6 +43,7 @@ public class PermissionController {
      * @return 权限分页结果
      */
     @GetMapping
+    @RequiresPermission("permission:manage")
     public ApiResponse<PageResponse<PermissionResponse>> pagePermissions(
             @PathVariable String applicationCode,
             @RequestParam(required = false) String keyword,
@@ -68,6 +70,7 @@ public class PermissionController {
      * @return 权限详情
      */
     @GetMapping("/{permissionId}")
+    @RequiresPermission("permission:manage")
     public ApiResponse<PermissionResponse> getPermission(
             @PathVariable String applicationCode,
             @PathVariable Long permissionId) {
@@ -82,6 +85,7 @@ public class PermissionController {
      * @return 新建权限详情
      */
     @PostMapping
+    @RequiresPermission("permission:manage")
     public ApiResponse<PermissionResponse> createPermission(
             @PathVariable String applicationCode,
             @Valid @RequestBody PermissionCreateRequest request) {
@@ -97,6 +101,7 @@ public class PermissionController {
      * @return 更新后的权限详情
      */
     @PutMapping("/{permissionId}")
+    @RequiresPermission("permission:manage")
     public ApiResponse<PermissionResponse> updatePermission(
             @PathVariable String applicationCode,
             @PathVariable Long permissionId,
@@ -113,6 +118,7 @@ public class PermissionController {
      * @return 更新后的权限详情
      */
     @PatchMapping("/{permissionId}/status")
+    @RequiresPermission("permission:manage")
     public ApiResponse<PermissionResponse> updateStatus(
             @PathVariable String applicationCode,
             @PathVariable Long permissionId,
@@ -128,6 +134,7 @@ public class PermissionController {
      * @return 空响应
      */
     @DeleteMapping("/{permissionId}")
+    @RequiresPermission("permission:manage")
     public ApiResponse<Void> deletePermission(
             @PathVariable String applicationCode,
             @PathVariable Long permissionId) {

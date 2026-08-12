@@ -5,6 +5,7 @@ import com.selflearning.authservice.auth.request.UserStatusRequest;
 import com.selflearning.authservice.auth.request.UserUpdateRequest;
 import com.selflearning.authservice.auth.response.UserResponse;
 import com.selflearning.authservice.auth.service.UserService;
+import com.selflearning.authservice.common.security.RequiresPermission;
 import com.selflearning.authservice.common.web.ApiResponse;
 import com.selflearning.authservice.common.web.PageResponse;
 import jakarta.validation.Valid;
@@ -19,6 +20,15 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+/**
+ * Users are a global resource — not owned by any single application (an {@code auth_user} row can hold
+ * roles under several {@code applicationCode}s at once) — so this controller is not path-scoped by
+ * {@code applicationCode} the way {@code RoleController}/{@code PermissionController} are. Every method
+ * instead takes {@code applicationCode} as an explicit request parameter: it says "I'm managing users as
+ * application X", and {@link RequiresPermission} (via {@code PermissionAspect}) checks the caller holds
+ * {@code <applicationCode-lowercased>:user:manage} in that application's scope. WMS is the only caller
+ * today; nothing here assumes it's the only one going forward.
+ */
 @RestController
 @RequestMapping("/users")
 public class UserController {
@@ -36,14 +46,17 @@ public class UserController {
      * @param status 用户状态，1 表示启用，0 表示停用
      * @param page 当前页码，从 1 开始
      * @param pageSize 每页条数，最大 100
+     * @param applicationCode 调用方所属应用编码，用于权限校验（如 WMS）
      * @return 用户分页结果
      */
     @GetMapping
+    @RequiresPermission("user:manage")
     public ApiResponse<PageResponse<UserResponse>> pageUsers(
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) Integer status,
             @RequestParam(required = false) Long page,
-            @RequestParam(required = false) Long pageSize) {
+            @RequestParam(required = false) Long pageSize,
+            @RequestParam String applicationCode) {
         return ApiResponse.ok(userService.pageUsers(keyword, status, page, pageSize));
     }
 
@@ -51,10 +64,14 @@ public class UserController {
      * 查询用户详情。
      *
      * @param id 用户ID
+     * @param applicationCode 调用方所属应用编码，用于权限校验
      * @return 用户详情
      */
     @GetMapping("/{id}")
-    public ApiResponse<UserResponse> getUser(@PathVariable Long id) {
+    @RequiresPermission("user:manage")
+    public ApiResponse<UserResponse> getUser(
+            @PathVariable Long id,
+            @RequestParam String applicationCode) {
         return ApiResponse.ok(userService.getUser(id));
     }
 
@@ -62,10 +79,14 @@ public class UserController {
      * 创建用户。
      *
      * @param request 创建请求
+     * @param applicationCode 调用方所属应用编码，用于权限校验
      * @return 新建用户详情
      */
     @PostMapping
-    public ApiResponse<UserResponse> createUser(@Valid @RequestBody UserCreateRequest request) {
+    @RequiresPermission("user:manage")
+    public ApiResponse<UserResponse> createUser(
+            @Valid @RequestBody UserCreateRequest request,
+            @RequestParam String applicationCode) {
         return ApiResponse.ok(userService.createUser(request));
     }
 
@@ -74,12 +95,15 @@ public class UserController {
      *
      * @param id 用户ID
      * @param request 更新请求
+     * @param applicationCode 调用方所属应用编码，用于权限校验
      * @return 更新后的用户详情
      */
     @PutMapping("/{id}")
+    @RequiresPermission("user:manage")
     public ApiResponse<UserResponse> updateUser(
             @PathVariable Long id,
-            @Valid @RequestBody UserUpdateRequest request) {
+            @Valid @RequestBody UserUpdateRequest request,
+            @RequestParam String applicationCode) {
         return ApiResponse.ok(userService.updateUser(id, request));
     }
 
@@ -88,12 +112,15 @@ public class UserController {
      *
      * @param id 用户ID
      * @param request 状态请求
+     * @param applicationCode 调用方所属应用编码，用于权限校验
      * @return 更新后的用户详情
      */
     @PatchMapping("/{id}/status")
+    @RequiresPermission("user:manage")
     public ApiResponse<UserResponse> updateStatus(
             @PathVariable Long id,
-            @Valid @RequestBody UserStatusRequest request) {
+            @Valid @RequestBody UserStatusRequest request,
+            @RequestParam String applicationCode) {
         return ApiResponse.ok(userService.updateStatus(id, request));
     }
 
@@ -101,10 +128,14 @@ public class UserController {
      * 删除用户。
      *
      * @param id 用户ID
+     * @param applicationCode 调用方所属应用编码，用于权限校验
      * @return 空响应
      */
     @DeleteMapping("/{id}")
-    public ApiResponse<Void> deleteUser(@PathVariable Long id) {
+    @RequiresPermission("user:manage")
+    public ApiResponse<Void> deleteUser(
+            @PathVariable Long id,
+            @RequestParam String applicationCode) {
         userService.deleteUser(id);
         return ApiResponse.ok();
     }
