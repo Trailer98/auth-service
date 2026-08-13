@@ -4,6 +4,7 @@ import com.selflearning.authservice.role.request.UserRoleAssignRequest;
 import com.selflearning.authservice.role.service.AuthorizationService;
 import com.selflearning.authservice.permission.response.PermissionResponse;
 import com.selflearning.authservice.role.response.RoleResponse;
+import com.selflearning.authservice.common.security.RequiresPermission;
 import com.selflearning.authservice.common.web.ApiResponse;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -32,6 +33,7 @@ public class UserAuthorizationController {
      * @return 角色列表
      */
     @GetMapping("/roles")
+    @RequiresPermission("role:manage")
     public ApiResponse<List<RoleResponse>> listUserRoles(
             @PathVariable String applicationCode,
             @PathVariable Long userId) {
@@ -49,6 +51,7 @@ public class UserAuthorizationController {
      * @return 替换后的角色列表
      */
     @PutMapping("/roles")
+    @RequiresPermission("role:manage")
     public ApiResponse<List<RoleResponse>> replaceUserRoles(
             @PathVariable String applicationCode,
             @PathVariable Long userId,
@@ -64,6 +67,7 @@ public class UserAuthorizationController {
      * @return 权限列表
      */
     @GetMapping("/permissions")
+    @RequiresPermission("role:manage")
     public ApiResponse<List<PermissionResponse>> listUserPermissions(
             @PathVariable String applicationCode,
             @PathVariable Long userId) {
