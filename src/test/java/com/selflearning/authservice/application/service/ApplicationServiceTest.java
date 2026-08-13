@@ -3,12 +3,14 @@ package com.selflearning.authservice.application.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.selflearning.authservice.application.request.ApplicationCreateRequest;
+import com.selflearning.authservice.application.request.ApplicationStatusRequest;
 import com.selflearning.authservice.application.request.ApplicationUpdateRequest;
 import com.selflearning.authservice.application.response.ApplicationResponse;
 import com.selflearning.authservice.application.domain.AuthApplication;
@@ -132,5 +134,102 @@ class ApplicationServiceTest {
         assertThat(updated.getDescription()).isEqualTo("New Description");
         assertThat(updated.getStatus()).isEqualTo(0);
         assertThat(response.applicationCode()).isEqualTo("CRM");
+    }
+
+    private AuthApplication platformApplication() {
+        AuthApplication platform = new AuthApplication();
+        platform.setId(1L);
+        platform.setApplicationCode("PLATFORM");
+        platform.setApplicationName("Identity Platform");
+        platform.setStatus(1);
+        platform.setDeleted(false);
+        return platform;
+    }
+
+    // PLATFORM 不能被禁用或删除（6.6/6.7 场景）——通过 updateStatus 这条路径尝试禁用
+    @Test
+    void updateStatusRejectsDisablingPlatform() {
+        when(applicationMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(platformApplication());
+
+        assertThatThrownBy(() -> applicationService.updateStatus(1L, new ApplicationStatusRequest(0)))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("PLATFORM");
+
+        verify(applicationMapper, never()).updateById(any(AuthApplication.class));
+    }
+
+    // 同一条不变量，另一条能触碰 status 字段的路径：updateApplication（PUT）本身也能改 status，
+    // 必须同样被挡住，不能只挡 updateStatus（PATCH）这一条路径。
+    @Test
+    void updateApplicationRejectsDisablingPlatformViaStatusField() {
+        when(applicationMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(platformApplication());
+
+        assertThatThrownBy(() -> applicationService.updateApplication(1L, new ApplicationUpdateRequest(
+                        "Identity Platform", "desc", 0)))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("PLATFORM");
+
+        verify(applicationMapper, never()).updateById(any(AuthApplication.class));
+    }
+
+    // updateApplication 不改 status（request.status()==null）时，对 PLATFORM 改名称/描述应该正常放行
+    // ——证明这条保护只挡"禁用尝试"，不是把 PLATFORM 整行锁死到不能编辑任何字段。
+    @Test
+    void updateApplicationAllowsNonStatusEditsToPlatform() {
+        when(applicationMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(platformApplication());
+        when(applicationMapper.updateById(any(AuthApplication.class))).thenReturn(1);
+
+        ApplicationResponse response = applicationService.updateApplication(1L, new ApplicationUpdateRequest(
+                "Identity Platform (renamed)", "new desc", null));
+
+        assertThat(response.applicationCode()).isEqualTo("PLATFORM");
+        verify(applicationMapper).updateById(any(AuthApplication.class));
+    }
+
+    @Test
+    void deleteApplicationRejectsDeletingPlatform() {
+        when(applicationMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(platformApplication());
+
+        assertThatThrownBy(() -> applicationService.deleteApplication(1L))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("PLATFORM");
+
+        verify(applicationMapper, never()).updateById(any(AuthApplication.class));
+    }
+
+    // 回归验证：其他应用不受 PLATFORM 保护逻辑影响，仍然可以正常禁用/删除
+    @Test
+    void updateStatusStillAllowsDisablingNonPlatformApplication() {
+        AuthApplication crm = new AuthApplication();
+        crm.setId(10L);
+        crm.setApplicationCode("CRM");
+        crm.setApplicationName("CRM System");
+        crm.setStatus(1);
+        crm.setDeleted(false);
+        when(applicationMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(crm);
+        when(applicationMapper.updateById(any(AuthApplication.class))).thenReturn(1);
+
+        ApplicationResponse response = applicationService.updateStatus(10L, new ApplicationStatusRequest(0));
+
+        assertThat(response.applicationCode()).isEqualTo("CRM");
+        verify(applicationMapper).updateById(any(AuthApplication.class));
+    }
+
+    @Test
+    void deleteApplicationStillAllowsDeletingNonPlatformApplication() {
+        AuthApplication crm = new AuthApplication();
+        crm.setId(10L);
+        crm.setApplicationCode("CRM");
+        crm.setApplicationName("CRM System");
+        crm.setStatus(1);
+        crm.setDeleted(false);
+        when(applicationMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(crm);
+        when(applicationMapper.updateById(any(AuthApplication.class))).thenReturn(1);
+
+        applicationService.deleteApplication(10L);
+
+        ArgumentCaptor<AuthApplication> captor = ArgumentCaptor.forClass(AuthApplication.class);
+        verify(applicationMapper).updateById(captor.capture());
+        assertThat(captor.getValue().getDeleted()).isTrue();
     }
 }

@@ -27,6 +27,15 @@ public class ApplicationService {
     private static final long DEFAULT_PAGE = 1L;
     private static final long DEFAULT_PAGE_SIZE = 20L;
     private static final long MAX_PAGE_SIZE = 100L;
+    /**
+     * PLATFORM 是身份平台自身的管理面（应用注册表等跨应用资源），不是一个可以被禁用/删除的普通业务
+     * 应用——一旦它被禁用或删除，{@code AuthContextService.requireEnabledApplication} 会让所有
+     * {@code applicationCode=PLATFORM} 的请求（包括 PLATFORM_ADMIN 自己）全部失败，相当于把平台管理面
+     * 自己锁死在外面。这条业务不变量放在 Service 层而不是 Controller 层：即便是合法持有
+     * {@code application:manage} 权限的调用方，也不应该能通过这个接口把自己锁死；未来任何新增的调用
+     * 入口（批处理脚本、内部管理 CLI）都会自动继承这条保护，不依赖每个调用方各自记得检查。
+     */
+    private static final String RESERVED_PLATFORM_APPLICATION_CODE = "PLATFORM";
 
     private final AuthApplicationMapper applicationMapper;
     private final AuthUserRoleMapper userRoleMapper;
@@ -114,6 +123,7 @@ public class ApplicationService {
     @Transactional
     public ApplicationResponse updateApplication(Long id, ApplicationUpdateRequest request) {
         AuthApplication existing = requireExistingApplication(id);
+        guardPlatformNotDisabled(existing, request.status());
         Integer previousStatus = existing.getStatus();
         existing.setApplicationName(request.applicationName().trim());
         existing.setDescription(trimToNull(request.description()));
@@ -135,6 +145,7 @@ public class ApplicationService {
     @Transactional
     public ApplicationResponse updateStatus(Long id, ApplicationStatusRequest request) {
         AuthApplication existing = requireExistingApplication(id);
+        guardPlatformNotDisabled(existing, request.status());
         existing.setStatus(request.status());
         applicationMapper.updateById(existing);
         evictApplicationContext(existing.getApplicationCode());
@@ -149,9 +160,29 @@ public class ApplicationService {
     @Transactional
     public void deleteApplication(Long id) {
         AuthApplication existing = requireExistingApplication(id);
+        guardPlatformNotDeleted(existing);
         existing.setDeleted(true);
         applicationMapper.updateById(existing);
         evictApplicationContext(existing.getApplicationCode());
+    }
+
+    /**
+     * 禁止把 PLATFORM 这一行的 status 改成非启用值——{@code updateApplication} 和 {@code updateStatus}
+     * 都能触碰 status 字段，两处都要挡。{@code requestedStatus} 为 {@code null} 表示这次请求不改
+     * status（{@code updateApplication} 允许只改名称/描述），此时不视为禁用尝试。
+     */
+    private void guardPlatformNotDisabled(AuthApplication existing, Integer requestedStatus) {
+        if (RESERVED_PLATFORM_APPLICATION_CODE.equals(existing.getApplicationCode())
+                && requestedStatus != null
+                && requestedStatus != DEFAULT_STATUS_ENABLED) {
+            throw new BadRequestException("PLATFORM is a reserved system application and cannot be disabled");
+        }
+    }
+
+    private void guardPlatformNotDeleted(AuthApplication existing) {
+        if (RESERVED_PLATFORM_APPLICATION_CODE.equals(existing.getApplicationCode())) {
+            throw new BadRequestException("PLATFORM is a reserved system application and cannot be deleted");
+        }
     }
 
     private void evictApplicationContext(String applicationCode) {
