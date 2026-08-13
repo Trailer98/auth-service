@@ -10,6 +10,17 @@ spring:
     nacos:
       discovery:
         enabled: false
+      config:
+        # This file has the same name as src/main/resources/application.yaml, so on the test
+        # classpath it fully replaces (not layers over) the main file — none of the main file's
+        # spring.config.import: nacos:... entries are ever visible during tests. Without this,
+        # spring-cloud-commons' fail-fast check throws "No spring.config.import set" before the
+        # context can even start (there being no Nacos import to find, real or otherwise).
+        # import-check.enabled:false is the documented way to tell it "this is intentional, we are
+        # not importing Nacos config here" — it does not point tests at Nacos in any way.
+        enabled: false
+        import-check:
+          enabled: false
 
 auth:
   permission-cache-ttl: 30m
